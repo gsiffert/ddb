@@ -12,8 +12,8 @@
     list/1,
     number/1,
     number_set/1,
-    map/1,
-    fields/1
+    object/1,
+    map/1
 ]).
 -export([
     encode/1,
@@ -56,64 +56,43 @@ number_set(Value) ->
 list(Value) ->
     #attribute{type=list, value=Value}.
 
--spec map(nonempty_list(#field{})) -> #attribute{type :: map, value :: #{string() := #attribute{}}}.
-map(Fields) ->
-    Map = lists:foldl(
-        fun(#field{name=Name, attribute=Attribute}, Acc) ->
-            maps:put(Name, Attribute, Acc)
-        end,
-        maps:new(),
-        Fields
-    ),
-    #attribute{type=map, value=Map}.
 
--spec fields(nonempty_list({string(), #attribute{}})) -> nonempty_list(#field{}).
-fields(Attributes) ->
-    lists:map(
-        fun({Name, Attribute}) ->
-            #field{name = Name, attribute = Attribute}
-        end,
-        Attributes
-    ).
+-spec object(nonempty_list({string(), #attribute{}})) -> #attribute{type :: object, value :: nonempty_list({string(), #attribute{}})}.
+object(Value) ->
+    #attribute{type=object, value=Value}.
 
--spec encode(#attribute{} | #field{}) -> #{binary() => binary()}.
+-spec map(#attribute{type :: object}) -> #attribute{type :: map, value :: #attribute{type :: object}}.
+map(Value) ->
+    #attribute{type=map, value=Value}.
+
+% -spec encode(#attribute{} | #field{}) -> #{binary() => binary()}.
 encode(#attribute{type=string, value=Value}) ->
-    #{<<"S">> => list_to_binary(Value)};
+    [{<<"S">>, list_to_binary(Value)}];
 encode(#attribute{type=string_set, value=Value}) ->
-    #{<<"SS">> => lists:map(fun erlang:list_to_binary/1, Value)};
+    [{<<"SS">>, lists:map(fun erlang:list_to_binary/1, Value)}];
 encode(#attribute{type=binary, value=Value}) ->
-    #{<<"B">> => base64:encode(Value)};
+    [{<<"B">>, base64:encode(Value)}];
 encode(#attribute{type=binary_set, value=Value}) ->
-    #{<<"BS">> => lists:map(fun base64:encode/1, Value)};
+    [{<<"BS">>, lists:map(fun base64:encode/1, Value)}];
 encode(#attribute{type=boolean, value=Value}) ->
-    #{<<"BOOL">> => Value};
+    [{<<"BOOL">>, Value}];
 encode(#attribute{type=null, value=Value}) ->
-    #{<<"NULL">> => Value};
+    [{<<"NULL">>, Value}];
 encode(#attribute{type=number, value=Value}) ->
-    #{<<"N">> => number_to_binary(Value)};
+    [{<<"N">>, number_to_binary(Value)}];
 encode(#attribute{type=number_set, value=Value}) ->
-    #{<<"NS">> => lists:map(fun number_to_binary/1, Value)};
+    [{<<"NS">>, lists:map(fun number_to_binary/1, Value)}];
 encode(#attribute{type=list, value=Value}) ->
-    #{<<"L">> => lists:map(fun encode/1, Value)};
-encode(#attribute{type=map, value=Value}) ->
-    Map = maps:fold(
-        fun(Key, Attribute, Acc) ->
-            maps:put(list_to_binary(Key), encode(Attribute), Acc)
+    [{<<"L">>, lists:map(fun encode/1, Value)}];
+encode(#attribute{type=object, value=Value}) ->
+    lists:map(
+        fun({Name, Item}) ->
+            {list_to_binary(Name), encode(Item)}
         end,
-        maps:new(),
         Value
-    ),
-    #{<<"M">> => Map};
-encode(#field{name = Name, attribute = Attribute}) ->
-    #{list_to_binary(Name) => encode(Attribute)};
-encode(Fields) ->
-    lists:foldl(
-        fun(Field, Acc) ->
-            maps:merge(encode(Field), Acc)
-        end,
-        maps:new(),
-        Fields
-    ).
+    );
+encode(#attribute{type=map, value=Value}) ->
+    [{<<"M">>, encode(Value)}].
 
 -type decode_result() :: string() | nonempty_list(string()) | binary() | nonempty_list(binary()) | boolean() | nil | number() | nonempty_list(number()) | nonempty_list(decode_result()) | #{string() := decode_result()}.
 -spec decode(#{binary() => binary()}) -> decode_result().
@@ -136,6 +115,8 @@ decode(#{<<"NS">> := Value}) ->
 decode(#{<<"L">> := Value}) ->
     lists:map(fun decode/1, Value);
 decode(#{<<"M">> := Value}) ->
+    decode(Value);
+decode(Value) when is_map(Value) ->
     maps:fold(
         fun(Key, ItemValue, Acc) ->
             maps:put(binary_to_list(Key), decode(ItemValue), Acc)
@@ -143,16 +124,8 @@ decode(#{<<"M">> := Value}) ->
         maps:new(),
         Value
     );
-decode(Fields) when is_list(Fields) =:= false ->
-    maps:fold(
-        fun(Key, ItemValue, Acc) ->
-            maps:put(binary_to_list(Key), decode(ItemValue), Acc)
-        end,
-        maps:new(),
-        Fields
-    );
-decode(Fields) ->
-    lists:map(fun decode/1, Fields).
+decode(Value) when is_list(Value) ->
+    lists:map(fun decode/1, Value).
 
 %
 % Private functions

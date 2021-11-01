@@ -1,8 +1,5 @@
 -module(ddb).
 
-% -record(get_item_request, {table_name, key}).
-% -record(get_item_response, {}).
-
 -include("ddb_types.hrl").
 
 -export([
@@ -22,39 +19,39 @@ get_item(Region, TableName, Keys) ->
     get_item(Region, TableName, Keys, []).
 
 get_item(Region, TableName, Keys, Options) ->
-    Req = #{
-        <<"TableName">> => list_to_binary(TableName),
-        <<"Key">> => attribute:encode(Keys)
-    },
+    Req = [
+        {<<"TableName">>, list_to_binary(TableName)},
+        {<<"Key">>, attribute:encode(Keys)}
+    ],
     private_get_item(Region, Options, Req).
 
 query(Region, TableName, KeyCondition) ->
     query(Region, TableName, KeyCondition, []).
 
 query(Region, TableName, KeyCondition, Options) ->
-    Req = #{
-        <<"TableName">> => list_to_binary(TableName),
-        <<"KeyConditionExpression">> => list_to_binary(KeyCondition)
-    },
+    Req = [
+        {<<"TableName">>, list_to_binary(TableName)},
+        {<<"KeyConditionExpression">>, list_to_binary(KeyCondition)}
+    ],
     private_query(Region, Options, Req).
 
 scan(Region, TableName) ->
     scan(Region, TableName, []).
 
 scan(Region, TableName, Options) ->
-    Req = #{
-        <<"TableName">> => list_to_binary(TableName)
-    },
+    Req = [
+        {<<"TableName">>, list_to_binary(TableName)}
+    ],
     private_scan(Region, Options, Req).
 
 put_item(Region, TableName, Item) ->
     put_item(Region, TableName, Item, []).
 
 put_item(Region, TableName, Item, Options) ->
-    Req = #{
-        <<"TableName">> => list_to_binary(TableName),
-        <<"Item">> => attribute:encode(Item)
-    },
+    Req = [
+        {<<"TableName">>, list_to_binary(TableName)},
+        {<<"Item">>, attribute:encode(Item)}
+    ],
     private_put_item(Region, Options, Req).
 
 decode_response(Map) when is_map_key(<<"Item">>, Map) ->
@@ -169,58 +166,54 @@ private_put_item(Region, [{return_values, _} = Option | Rest], Acc) ->
     private_put_item(Region, Rest, option(Option, Acc)).
 
 option({consistent_read, Value}, Acc) ->
-    maps:put(<<"ConsistentRead">>, Value, Acc);
+    [{<<"ConsistentRead">>, Value} | Acc];
 option({return_consumed_capacity, Value}, Acc) ->
-    maps:put(<<"ReturnConsumedCapacity">>, return_consumed_capacity(Value), Acc);
+    [{<<"ReturnConsumedCapacity">>, return_consumed_capacity(Value)} | Acc];
 option({projection_expression, Value}, Acc) ->
-    maps:put(<<"ProjectionExpression">>, list_to_binary(Value), Acc);
+    [{<<"ProjectionExpression">>, list_to_binary(Value)} | Acc];
 option({exclusive_start_key, Value}, Acc) ->
-    maps:put(<<"ExclusiveStartKey">>, attribute:encode(Value), Acc);
+    [{<<"ExclusiveStartKey">>, attribute:encode(Value)} | Acc];
 option({expression_attribute_names, Value}, Acc) ->
-        ExpressionAttributeNames = lists:foldl(
-        fun({Key, Item}, NewAcc) ->
-            maps:put(list_to_binary(Key), list_to_binary(Item), NewAcc)
+    ExpressionAttributeNames = lists:map(
+        fun({Key, Item}) ->
+            {list_to_binary(Key), list_to_binary(Item)}
         end,
-        maps:new(),
         Value
     ),
-    maps:put(<<"ExpressionAttributeNames">>, ExpressionAttributeNames, Acc);
+   [{<<"ExpressionAttributeNames">>, ExpressionAttributeNames} | Acc];
 option({expression_attribute_values, Value}, Acc) ->
-        ExpressionAttributeValues = lists:foldl(
-        fun({Key, Item}, NewAcc) ->
-            maps:put(list_to_binary(Key), attribute:encode(Item), NewAcc)
+    ExpressionAttributeValues = lists:map(
+        fun({Key, Item}) ->
+            {list_to_binary(Key), attribute:encode(Item)}
         end,
-        maps:new(),
         Value
     ),
-    maps:put(<<"ExpressionAttributeValues">>, ExpressionAttributeValues, Acc);
+    [{<<"ExpressionAttributeValues">>, ExpressionAttributeValues} | Acc];
 option({filter_expression, Value}, Acc) ->
-    maps:put(<<"FilterExpression">>, list_to_binary(Value), Acc);
+    [{<<"FilterExpression">>, list_to_binary(Value)} | Acc];
 option({index_name, Value}, Acc) ->
-    maps:put(<<"IndexName">>, list_to_binary(Value), Acc);
+    [{<<"IndexName">>, list_to_binary(Value)} | Acc];
 option({key_condition_expression, Value}, Acc) ->
-    maps:put(<<"KeyConditionExpression">>, list_to_binary(Value), Acc);
+    [{<<"KeyConditionExpression">>, list_to_binary(Value)} | Acc];
 option({limit, Value}, Acc) ->
-    maps:put(<<"Limit">>, Value, Acc);
+    [{<<"Limit">>, Value} | Acc];
 option({scan_index_forward, Value}, Acc) ->
-    maps:put(<<"ScanIndexForward">>, Value, Acc);
+    [{<<"ScanIndexForward">>, Value} | Acc];
 option({select, Value}, Acc) ->
-    maps:put(<<"Select">>, select(Value), Acc);
+    [{<<"Select">>, select(Value)} | Acc];
 option({segment, Value}, Acc) ->
-    maps:put(<<"Segment">>, Value, Acc);
+    [{<<"Segment">>, Value} | Acc];
 option({total_segments, Value}, Acc) ->
-    maps:put(<<"TotalSegments">>, Value, Acc);
+    [{<<"TotalSegments">>, Value} | Acc];
 option({condition_expression, Value}, Acc) ->
-    maps:put(<<"ConditionExpression">>, list_to_binary(Value), Acc);
+    [{<<"ConditionExpression">>, list_to_binary(Value)} | Acc];
 option({return_item_collection_metrics, Value}, Acc) ->
-    maps:put(<<"ReturnItemCollectionMetrics">>, return_item_collection_metrics(Value), Acc);
+    [{<<"ReturnItemCollectionMetrics">>, return_item_collection_metrics(Value)} | Acc];
 option({return_values, Value}, Acc) ->
-    maps:put(<<"ReturnValues">>, return_values(Value), Acc).
+    [{<<"ReturnValues">>, return_values(Value)} | Acc].
 
-% TODO: implement a connection pooling, we shouldn't have to re-open a new connection for every request.
 api(Region, Method, Request) ->
-    SignedHeaders = #{"content-type" => "application/x-amz-json-1.0"},
-    Payload = jiffy:encode(Request),
+    Payload = jsx:encode(Request),
     Host = "dynamodb." ++ Region ++ ".amazonaws.com",
     Headers = awsv4:headers(
         erliam:credentials(),
@@ -229,15 +222,14 @@ api(Region, Method, Request) ->
             region => Region,
             method => "POST",
             host => Host,
-            target_api => Method,
-            signed_headers => SignedHeaders
+            target_api => Method
         },
         Payload
     ),
-    {ok, ConnPid} = gun:open(Host, 443),
-    StreamRef = gun:post(ConnPid, "/", Headers, Payload),
-    {response, nofin, _Status, _} = gun:await(ConnPid, StreamRef),
-    {ok, RespBody} = gun:await_body(ConnPid, StreamRef),
-    gun:close(ConnPid),
-    Response = jiffy:decode(RespBody, [return_maps]),
+    URL = list_to_binary("https://" ++ Host),
+    Tmp = [{<<"Content-Type">>, <<"application/x-amz-json-1.0">>} | Headers],
+    {ok, _StatusCode, _RespHeaders, ClientRef} =
+        hackney:request(post, URL, Tmp, Payload, []),
+    {ok, RespBody} = hackney:body(ClientRef),
+    Response = jsx:decode(RespBody),
     decode_response(Response).

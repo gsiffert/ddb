@@ -7,7 +7,7 @@
    [kernel,
     stdlib,
     erliam,
-    gun
+    hackney
    ]},
   {env, []},
   {modules, []},
