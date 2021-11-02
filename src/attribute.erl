@@ -18,6 +18,7 @@
 -export([
     encode/1,
     decode/1
+    % decode/2
 ]).
 
 -spec string(string()) -> #attribute{type :: string, value :: string()}.
@@ -94,38 +95,42 @@ encode(#attribute{type=object, value=Value}) ->
 encode(#attribute{type=map, value=Value}) ->
     [{<<"M">>, encode(Value)}].
 
--type decode_result() :: string() | nonempty_list(string()) | binary() | nonempty_list(binary()) | boolean() | nil | number() | nonempty_list(number()) | nonempty_list(decode_result()) | #{string() := decode_result()}.
--spec decode(#{binary() => binary()}) -> decode_result().
-decode(#{<<"S">> := Value}) ->
-    binary_to_list(Value);
-decode(#{<<"SS">> := Value}) ->
-    lists:map(fun erlang:binary_to_list/1, Value);
-decode(#{<<"B">> := Value}) ->
-    base64:decode(Value);
-decode(#{<<"BS">> := Value}) ->
-    lists:map(fun base64:decode/1, Value);
-decode(#{<<"BOOL">> := Value}) ->
-    Value;
-decode(#{<<"NULL">> := _}) ->
-    nil;
-decode(#{<<"N">> := Value}) ->
-    binary_to_number(Value);
-decode(#{<<"NS">> := Value}) ->
-    lists:map(fun binary_to_number/1, Value);
-decode(#{<<"L">> := Value}) ->
-    lists:map(fun decode/1, Value);
-decode(#{<<"M">> := Value}) ->
-    decode(Value);
-decode(Value) when is_map(Value) ->
-    maps:fold(
-        fun(Key, ItemValue, Acc) ->
-            maps:put(binary_to_list(Key), decode(ItemValue), Acc)
-        end,
-        maps:new(),
-        Value
-    );
-decode(Value) when is_list(Value) ->
-    lists:map(fun decode/1, Value).
+decode(Value) ->
+    decode(Value, []).
+
+% -type decode_result() :: string() | nonempty_list(string()) | binary() | nonempty_list(binary()) | boolean() | nil | number() | nonempty_list(number()) | nonempty_list(decode_result()) | #{string() := decode_result()}.
+% -spec decode(#{binary() => binary()}) -> decode_result().
+% decode(#{<<"S">> := Value}) ->
+%     binary_to_list(Value);
+% decode(#{<<"SS">> := Value}) ->
+%     lists:map(fun erlang:binary_to_list/1, Value);
+% decode(#{<<"B">> := Value}) ->
+%     base64:decode(Value);
+% decode(#{<<"BS">> := Value}) ->
+%     lists:map(fun base64:decode/1, Value);
+% decode(#{<<"BOOL">> := Value}) ->
+%     Value;
+% decode(#{<<"NULL">> := _}) ->
+%     nil;
+% decode(#{<<"N">> := Value}) ->
+%     binary_to_number(Value);
+% decode(#{<<"NS">> := Value}) ->
+%     lists:map(fun binary_to_number/1, Value);
+% decode(#{<<"L">> := Value}) ->
+%     lists:map(fun decode/1, Value);
+% decode(#{<<"M">> := Value}) ->
+%     decode(Value);
+% decode(Value) when is_map(Value) ->
+%     maps:fold(
+%         fun(Key, ItemValue, Acc) ->
+%             maps:put(binary_to_list(Key), decode(ItemValue), Acc)
+%         end,
+%         maps:new(),
+%         Value
+%     );
+% decode(Value) when is_list(Value) ->
+%     lists:map(fun decode/1, Value).
+
 
 %
 % Private functions
@@ -143,3 +148,29 @@ binary_to_number(Value) ->
     catch
         error:badarg -> binary_to_integer(Value)
     end.
+
+decode([], Acc) ->
+    Acc;
+decode([{<<"S">>, Value}], _Acc) ->
+    binary_to_list(Value);
+decode([{<<"SS">>, Value}], _Acc) ->
+    lists:map(fun erlang:binary_to_list/1, Value);
+decode([{<<"B">>, Value}], _Acc) ->
+    base64:decode(Value);
+decode([{<<"BS">>, Value}], _Acc) ->
+    lists:map(fun base64:decode/1, Value);
+decode([{<<"BOOL">>, Value}], _Acc) ->
+    Value;
+decode([{<<"NULL">>, _}], _Acc) ->
+    nil;
+decode([{<<"N">>, Value}], _Acc) ->
+    binary_to_number(Value);
+decode([{<<"NS">>, Value}], _Acc) ->
+    lists:map(fun binary_to_number/1, Value);
+decode([{<<"L">>, Value}], Acc) ->
+    lists:map(fun(Item) -> decode(Item, Acc) end, Value);
+decode([{<<"M">>, Value}], Acc) ->
+    decode(Value, Acc);
+decode([{FieldName, Attribute} | Rest], Acc) ->
+    Next = decode(Attribute, []),
+    decode(Rest, [{binary_to_list(FieldName), Next} | Acc]).

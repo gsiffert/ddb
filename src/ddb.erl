@@ -54,12 +54,15 @@ put_item(Region, TableName, Item, Options) ->
     ],
     private_put_item(Region, Options, Req).
 
-decode_response(Map) when is_map_key(<<"Item">>, Map) ->
-    {ok, attribute:decode(maps:get(<<"Item">>, Map)), maps:remove(<<"Item">>, Map)};
-decode_response(Map) when is_map_key(<<"Items">>, Map) ->
-    {ok, attribute:decode(maps:get(<<"Items">>, Map)), maps:remove(<<"Items">>, Map)};
-decode_response(Map) ->
-    {ok, Map}.
+decode_response([], Acc) ->
+    Acc;
+decode_response([{<<"Item">>, Data} | Rest], Acc) ->
+    decode_response(Rest, [attribute:decode(Data) | Acc]);
+decode_response([{<<"Items">>, Data} | Rest], Acc) ->
+    Items = lists:map(fun attribute:decode/1, Data),
+    decode_response(Rest, [Items | Acc]);
+decode_response([Item | Rest], Acc) ->
+    decode_response(Rest, [Item | Acc]).
 
 %
 % Private functions
@@ -231,5 +234,6 @@ api(Region, Method, Request) ->
     {ok, _StatusCode, _RespHeaders, ClientRef} =
         hackney:request(post, URL, Tmp, Payload, []),
     {ok, RespBody} = hackney:body(ClientRef),
-    Response = jsx:decode(RespBody),
-    decode_response(Response).
+    io:format("~s~n", [RespBody]),
+    Response = jsx:decode(RespBody, [{return_maps, false}]),
+    decode_response(Response, []).
