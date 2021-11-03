@@ -12,13 +12,11 @@
     list/1,
     number/1,
     number_set/1,
-    object/1,
     map/1
 ]).
 -export([
     encode/1,
     decode/1
-    % decode/2
 ]).
 
 -spec string(string()) -> #attribute{type :: string, value :: string()}.
@@ -57,80 +55,22 @@ number_set(Value) ->
 list(Value) ->
     #attribute{type=list, value=Value}.
 
-
--spec object(nonempty_list({string(), #attribute{}})) -> #attribute{type :: object, value :: nonempty_list({string(), #attribute{}})}.
-object(Value) ->
-    #attribute{type=object, value=Value}.
-
--spec map(#attribute{type :: object}) -> #attribute{type :: map, value :: #attribute{type :: object}}.
+% -spec map(nonempty_list({string(), #attribute{}})) -> #attribute{type :: map, value :: #attribute{type :: object}}.
 map(Value) ->
     #attribute{type=map, value=Value}.
 
-% -spec encode(#attribute{} | #field{}) -> #{binary() => binary()}.
-encode(#attribute{type=string, value=Value}) ->
-    [{<<"S">>, list_to_binary(Value)}];
-encode(#attribute{type=string_set, value=Value}) ->
-    [{<<"SS">>, lists:map(fun erlang:list_to_binary/1, Value)}];
-encode(#attribute{type=binary, value=Value}) ->
-    [{<<"B">>, base64:encode(Value)}];
-encode(#attribute{type=binary_set, value=Value}) ->
-    [{<<"BS">>, lists:map(fun base64:encode/1, Value)}];
-encode(#attribute{type=boolean, value=Value}) ->
-    [{<<"BOOL">>, Value}];
-encode(#attribute{type=null, value=Value}) ->
-    [{<<"NULL">>, Value}];
-encode(#attribute{type=number, value=Value}) ->
-    [{<<"N">>, number_to_binary(Value)}];
-encode(#attribute{type=number_set, value=Value}) ->
-    [{<<"NS">>, lists:map(fun number_to_binary/1, Value)}];
-encode(#attribute{type=list, value=Value}) ->
-    [{<<"L">>, lists:map(fun encode/1, Value)}];
-encode(#attribute{type=object, value=Value}) ->
+encode(Value) when is_list(Value) =:= false ->
+    private_encode(Value);
+encode(Value) ->
     lists:map(
         fun({Name, Item}) ->
-            {list_to_binary(Name), encode(Item)}
+            {list_to_binary(Name), private_encode(Item)}
         end,
         Value
-    );
-encode(#attribute{type=map, value=Value}) ->
-    [{<<"M">>, encode(Value)}].
+    ).
 
 decode(Value) ->
-    decode(Value, []).
-
-% -type decode_result() :: string() | nonempty_list(string()) | binary() | nonempty_list(binary()) | boolean() | nil | number() | nonempty_list(number()) | nonempty_list(decode_result()) | #{string() := decode_result()}.
-% -spec decode(#{binary() => binary()}) -> decode_result().
-% decode(#{<<"S">> := Value}) ->
-%     binary_to_list(Value);
-% decode(#{<<"SS">> := Value}) ->
-%     lists:map(fun erlang:binary_to_list/1, Value);
-% decode(#{<<"B">> := Value}) ->
-%     base64:decode(Value);
-% decode(#{<<"BS">> := Value}) ->
-%     lists:map(fun base64:decode/1, Value);
-% decode(#{<<"BOOL">> := Value}) ->
-%     Value;
-% decode(#{<<"NULL">> := _}) ->
-%     nil;
-% decode(#{<<"N">> := Value}) ->
-%     binary_to_number(Value);
-% decode(#{<<"NS">> := Value}) ->
-%     lists:map(fun binary_to_number/1, Value);
-% decode(#{<<"L">> := Value}) ->
-%     lists:map(fun decode/1, Value);
-% decode(#{<<"M">> := Value}) ->
-%     decode(Value);
-% decode(Value) when is_map(Value) ->
-%     maps:fold(
-%         fun(Key, ItemValue, Acc) ->
-%             maps:put(binary_to_list(Key), decode(ItemValue), Acc)
-%         end,
-%         maps:new(),
-%         Value
-%     );
-% decode(Value) when is_list(Value) ->
-%     lists:map(fun decode/1, Value).
-
+    private_decode(Value, []).
 
 %
 % Private functions
@@ -149,28 +89,55 @@ binary_to_number(Value) ->
         error:badarg -> binary_to_integer(Value)
     end.
 
-decode([], Acc) ->
+private_encode(#attribute{type=string, value=Value}) ->
+    [{<<"S">>, list_to_binary(Value)}];
+private_encode(#attribute{type=string_set, value=Value}) ->
+    [{<<"SS">>, lists:map(fun erlang:list_to_binary/1, Value)}];
+private_encode(#attribute{type=binary, value=Value}) ->
+    [{<<"B">>, base64:encode(Value)}];
+private_encode(#attribute{type=binary_set, value=Value}) ->
+    [{<<"BS">>, lists:map(fun base64:encode/1, Value)}];
+private_encode(#attribute{type=boolean, value=Value}) ->
+    [{<<"BOOL">>, Value}];
+private_encode(#attribute{type=null, value=Value}) ->
+    [{<<"NULL">>, Value}];
+private_encode(#attribute{type=number, value=Value}) ->
+    [{<<"N">>, number_to_binary(Value)}];
+private_encode(#attribute{type=number_set, value=Value}) ->
+    [{<<"NS">>, lists:map(fun number_to_binary/1, Value)}];
+private_encode(#attribute{type=list, value=Value}) ->
+    [{<<"L">>, lists:map(fun private_encode/1, Value)}];
+private_encode(#attribute{type=map, value=Value}) ->
+    Items = lists:map(
+        fun({Name, Item}) ->
+            {list_to_binary(Name), private_encode(Item)}
+        end,
+        Value
+    ),
+    [{<<"M">>, Items}].
+
+private_decode([], Acc) ->
     Acc;
-decode([{<<"S">>, Value}], _Acc) ->
+private_decode([{<<"S">>, Value}], _Acc) ->
     binary_to_list(Value);
-decode([{<<"SS">>, Value}], _Acc) ->
+private_decode([{<<"SS">>, Value}], _Acc) ->
     lists:map(fun erlang:binary_to_list/1, Value);
-decode([{<<"B">>, Value}], _Acc) ->
+private_decode([{<<"B">>, Value}], _Acc) ->
     base64:decode(Value);
-decode([{<<"BS">>, Value}], _Acc) ->
+private_decode([{<<"BS">>, Value}], _Acc) ->
     lists:map(fun base64:decode/1, Value);
-decode([{<<"BOOL">>, Value}], _Acc) ->
+private_decode([{<<"BOOL">>, Value}], _Acc) ->
     Value;
-decode([{<<"NULL">>, _}], _Acc) ->
+private_decode([{<<"NULL">>, _}], _Acc) ->
     nil;
-decode([{<<"N">>, Value}], _Acc) ->
+private_decode([{<<"N">>, Value}], _Acc) ->
     binary_to_number(Value);
-decode([{<<"NS">>, Value}], _Acc) ->
+private_decode([{<<"NS">>, Value}], _Acc) ->
     lists:map(fun binary_to_number/1, Value);
-decode([{<<"L">>, Value}], Acc) ->
-    lists:map(fun(Item) -> decode(Item, Acc) end, Value);
-decode([{<<"M">>, Value}], Acc) ->
-    decode(Value, Acc);
-decode([{FieldName, Attribute} | Rest], Acc) ->
-    Next = decode(Attribute, []),
-    decode(Rest, [{binary_to_list(FieldName), Next} | Acc]).
+private_decode([{<<"L">>, Value}], Acc) ->
+    lists:map(fun(Item) -> private_decode(Item, Acc) end, Value);
+private_decode([{<<"M">>, Value}], Acc) ->
+    private_decode(Value, Acc);
+private_decode([{FieldName, Attribute} | Rest], Acc) ->
+    Next = private_decode(Attribute, []),
+    private_decode(Rest, [{binary_to_list(FieldName), Next} | Acc]).

@@ -64,7 +64,7 @@ encode_test_() ->
         },
         {
             "Object{Name(Gaston), Age(29)}",
-            attribute:object([{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}]),
+            [{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}],
             [
                 {<<"Name">>, [{<<"S">>, <<"Gaston">>}]},
                 {<<"Age">>, [{<<"N">>, <<"29">>}]}
@@ -72,7 +72,7 @@ encode_test_() ->
         },
         {
             "Map{Name(Gaston), Age(29)}",
-            attribute:map(attribute:object([{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}])),
+            attribute:map([{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}]),
             [{
                 <<"M">>,
                 [
@@ -83,38 +83,50 @@ encode_test_() ->
         },
         {
             "Complex",
-            attribute:object([
-                {"Profile", attribute:object([{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}])},
+            [
+                {"Profile", attribute:map([{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}])},
                 {"Languages", attribute:list([
-                    attribute:object([{"Name", attribute:string("French")}, {"Level", attribute:string("Native")}]),
-                    attribute:object([{"Name", attribute:string("English")}, {"Level", attribute:string("Fluent")}]),
-                    attribute:object([{"Name", attribute:string("Japanese")}, {"Level", attribute:string("Beginner")}])
+                    attribute:map([{"Name", attribute:string("French")}, {"Level", attribute:string("Native")}]),
+                    attribute:map([{"Name", attribute:string("English")}, {"Level", attribute:string("Fluent")}]),
+                    attribute:map([{"Name", attribute:string("Japanese")}, {"Level", attribute:string("Beginner")}])
                 ])}
-            ]),
+            ],
             [
                 {
                     <<"Profile">>,
-                    [
-                        {<<"Name">>, [{<<"S">>, <<"Gaston">>}]},
-                        {<<"Age">>, [{<<"N">>, <<"29">>}]}
-                    ]
+                    [{
+                        <<"M">>,
+                        [
+                            {<<"Name">>, [{<<"S">>, <<"Gaston">>}]},
+                            {<<"Age">>, [{<<"N">>, <<"29">>}]}
+                        ]
+                    }]
                 },
                 {
                     <<"Languages">>,
                     [
                         {<<"L">>, [
-                            [
-                                {<<"Name">>, [{<<"S">>, <<"French">>}]},
-                                {<<"Level">>, [{<<"S">>, <<"Native">>}]}
-                            ],
-                            [
-                                {<<"Name">>, [{<<"S">>, <<"English">>}]},
-                                {<<"Level">>, [{<<"S">>, <<"Fluent">>}]}
-                            ],
-                            [
-                                {<<"Name">>, [{<<"S">>, <<"Japanese">>}]},
-                                {<<"Level">>, [{<<"S">>, <<"Beginner">>}]}
-                            ]
+                            [{
+                                <<"M">>,
+                                [
+                                    {<<"Name">>, [{<<"S">>, <<"French">>}]},
+                                    {<<"Level">>, [{<<"S">>, <<"Native">>}]}
+                                ]
+                            }],
+                            [{
+                                <<"M">>,
+                                [
+                                    {<<"Name">>, [{<<"S">>, <<"English">>}]},
+                                    {<<"Level">>, [{<<"S">>, <<"Fluent">>}]}
+                                ]
+                            }],
+                            [{
+                                <<"M">>,
+                                [
+                                    {<<"Name">>, [{<<"S">>, <<"Japanese">>}]},
+                                    {<<"Level">>, [{<<"S">>, <<"Beginner">>}]}
+                                ]
+                            }]
                         ]}
                     ]
                 }
@@ -179,7 +191,7 @@ decode_test_() ->
         },
         {
             "Object{Name(Gaston), Age(29)}",
-            attribute:object([{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}]),
+            [{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}],
             [
                 {"Age", 29},
                 {"Name", "Gaston"}
@@ -187,7 +199,7 @@ decode_test_() ->
         },
         {
             "Map{Name(Gaston), Age(29)}",
-            attribute:map(attribute:object([{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}])),
+            attribute:map([{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}]),
             [
                 {"Age", 29},
                 {"Name", "Gaston"}
@@ -195,14 +207,14 @@ decode_test_() ->
         },
         {
             "Complex",
-            attribute:object([
-                {"Profile", attribute:object([{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}])},
+            [
+                {"Profile", attribute:map([{"Name", attribute:string("Gaston")}, {"Age", attribute:number(29)}])},
                 {"Languages", attribute:list([
-                    attribute:object([{"Name", attribute:string("French")}, {"Level", attribute:string("Native")}]),
-                    attribute:object([{"Name", attribute:string("English")}, {"Level", attribute:string("Fluent")}]),
-                    attribute:object([{"Name", attribute:string("Japanese")}, {"Level", attribute:string("Beginner")}])
+                    attribute:map([{"Name", attribute:string("French")}, {"Level", attribute:string("Native")}]),
+                    attribute:map([{"Name", attribute:string("English")}, {"Level", attribute:string("Fluent")}]),
+                    attribute:map([{"Name", attribute:string("Japanese")}, {"Level", attribute:string("Beginner")}])
                 ])}
-            ]),
+            ],
             [
                 {
                     "Languages",
