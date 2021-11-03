@@ -14,7 +14,7 @@ on: [push]
 
 jobs:
   ci:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
     name: OTP ${{matrix.otp}}
     strategy:
       matrix:
