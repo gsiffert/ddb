@@ -55,7 +55,7 @@ number_set(Value) ->
 list(Value) ->
     #attribute{type=list, value=Value}.
 
-% -spec map(nonempty_list({string(), #attribute{}})) -> #attribute{type :: map, value :: #attribute{type :: object}}.
+-spec map(nonempty_list({string(), #attribute{}})) -> #attribute{type :: map, value :: nonempty_list({string(), #attribute{}})}.
 map(Value) ->
     #attribute{type=map, value=Value}.
 

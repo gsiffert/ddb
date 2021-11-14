@@ -10,10 +10,21 @@
     scan/2,
     scan/3,
     put_item/3,
-    put_item/4
+    put_item/4,
+    create_table/4,
+    create_table/5
 ]).
 
--type return_consumed_capacity() :: indexes | total | none.
+create_table(Region, TableName, AttributeDefinitions, KeySchema) ->
+    create_table(Region, TableName, AttributeDefinitions, KeySchema, []).
+
+create_table(Region, TableName, AttributeDefinitions, KeySchema, Options) ->
+    Req = [
+        {<<"TableName">>, list_to_binary(TableName)}
+    ],
+    Req2 = option({attribute_definitions, AttributeDefinitions}, Req),
+    Req3 = option({key_schema, KeySchema}, Req2),
+    private_create_table(Region, Options, Req3).
 
 get_item(Region, TableName, Keys) ->
     get_item(Region, TableName, Keys, []).
@@ -85,6 +96,59 @@ return_values(all_old) -> <<"ALL_OLD">>;
 return_values(updated_old) -> <<"UPDATED_OLD">>;
 return_values(all_new) -> <<"ALL_NEW">>;
 return_values(updated_new) -> <<"UPDATED_NEW">>.
+
+attribute_definition({Name, string}) ->
+    [
+        {<<"AttributeName">>, list_to_binary(Name)},
+        {<<"AttributeType">>, <<"S">>}
+    ];
+attribute_definition({Name, number}) ->
+    [
+        {<<"AttributeName">>, list_to_binary(Name)},
+        {<<"AttributeType">>, <<"N">>}
+    ];
+attribute_definition({Name, binary}) ->
+    [
+        {<<"AttributeName">>, list_to_binary(Name)},
+        {<<"AttributeType">>, <<"B">>}
+    ].
+
+key_schema({Name, hash}) ->
+    [
+        {<<"AttributeName">>, list_to_binary(Name)},
+        {<<"KeyType">>, <<"HASH">>}
+    ];
+key_schema({Name, partition}) ->
+    [
+        {<<"AttributeName">>, list_to_binary(Name)},
+        {<<"KeyType">>, <<"HASH">>}
+    ];
+key_schema({Name, range}) ->
+    [
+        {<<"AttributeName">>, list_to_binary(Name)},
+        {<<"KeyType">>, <<"RANGE">>}
+    ];
+key_schema({Name, sort}) ->
+    [
+        {<<"AttributeName">>, list_to_binary(Name)},
+        {<<"KeyType">>, <<"RANGE">>}
+    ].
+
+provisioned_throughput([], Acc) ->
+    Acc;
+provisioned_throughput([{read_capacity_units, Value} | Rest], Acc) ->
+    provisioned_throughput(Rest, [{<<"ReadCapacityUnits">>, integer_to_binary(Value)} | Acc]);
+provisioned_throughput([{write_capacity_units, Value} | Rest], Acc) ->
+    provisioned_throughput(Rest, [{<<"WriteCapacityUnits">>, integer_to_binary(Value)} | Acc]).
+
+billing_mode(provisioned) -> <<"PROVISIONED">>;
+billing_mode(pay_per_request) -> <<"PAY_PER_REQUEST">>.
+
+private_create_table(Region, [], Acc) ->
+    io:format("Req(~p)~n", [Acc]),
+    api(Region, "DynamoDB_20120810.CreateTable", Acc);
+private_create_table(Region, [{billing_mode, _} = Option | Rest], Acc) ->
+    private_create_table(Region, Rest, option(Option, Acc)).
 
 private_get_item(Region, [], Acc) ->
     io:format("Req(~p)~n", [Acc]),
@@ -213,11 +277,23 @@ option({condition_expression, Value}, Acc) ->
 option({return_item_collection_metrics, Value}, Acc) ->
     [{<<"ReturnItemCollectionMetrics">>, return_item_collection_metrics(Value)} | Acc];
 option({return_values, Value}, Acc) ->
-    [{<<"ReturnValues">>, return_values(Value)} | Acc].
+    [{<<"ReturnValues">>, return_values(Value)} | Acc];
+option({attribute_definitions, Value}, Acc) ->
+    Items = lists:map(fun attribute_definition/1, Value),
+    [{<<"AttributeDefinitions">>, Items} | Acc];
+option({key_schema, Value}, Acc) ->
+    Items = lists:map(fun key_schema/1, Value),
+    [{<<"KeySchema">>, Items} | Acc];
+option({billing_mode, Value}, Acc) ->
+    [{<<"BillingMode">>, billing_mode(Value)} | Acc];
+option({provisioned_throughput, Value}, Acc) ->
+    [{<<"ProvisionedThroughput">>, provisioned_throughput(Value, [])} | Acc].
 
 api(Region, Method, Request) ->
     Payload = jsx:encode(Request),
-    Host = "dynamodb." ++ Region ++ ".amazonaws.com",
+    io:format("Payload(~p)~n", [Payload]),
+    Host = "localhost:8000",
+    % Host = "dynamodb." ++ Region ++ ".amazonaws.com",
     Headers = awsv4:headers(
         erliam:credentials(),
         #{
@@ -229,7 +305,7 @@ api(Region, Method, Request) ->
         },
         Payload
     ),
-    URL = list_to_binary("https://" ++ Host),
+    URL = list_to_binary("http://" ++ Host),
     Tmp = [{<<"Content-Type">>, <<"application/x-amz-json-1.0">>} | Headers],
     {ok, _StatusCode, _RespHeaders, ClientRef} =
         hackney:request(post, URL, Tmp, Payload, []),
